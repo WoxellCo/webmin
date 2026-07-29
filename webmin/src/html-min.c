@@ -1,6 +1,5 @@
 #include "html-min.h"
 #include "webmin_general.h"
-#include <stddef.h>
 
 enum html_tag_status {
     hts_begin,          // <█ or </█
@@ -16,14 +15,65 @@ enum html_value_type {
     hvt_static,
     hvt_js,
     hvt_css,
-    hvt_class
+    hvt_list
 };
 
-void webmin_html_process_value(webmin_context_t *ctx, uint8_t value_type) {
+uint8_t webmin_html_get_value_type(const char *key, size_t key_length) {
+    if (webmin_string_equals_ignore_case_with_length(key, "class", key_length)) {
+        return hvt_list;
+    } else if (webmin_string_equals_ignore_case_with_length(key, "style", key_length)) {
+        return hvt_css;
+    } else if (webmin_string_equals_ignore_case_with_length(key, "on", 2)) {
+        return hvt_js;
+    } return hvt_static;
+}
+
+void webmin_html_process_value(webmin_context_t *ctx, char *s, uint8_t value_type) {
+    char end_token = s[ctx->processed_length];
+    if (end_token != '\'' && end_token != '"')
+        end_token = '\0';
+    else {
+        s[ctx->output_length++] = end_token;
+        ctx->processed_length++;
+    }
+
     // not minifying js nor css until i implemented the minifier for them
     if (value_type == hvt_static || value_type == hvt_js || value_type == hvt_css) {
-        
+        while (s[ctx->processed_length] != end_token && s[ctx->processed_length] != '\0') {
+            char c = s[ctx->processed_length];
+            if (end_token == '\0') {
+                if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
+                    return;
+                else if (c == '/' || c == '>')
+                    return;
+            }
+
+            s[ctx->output_length++] = c;
+            ctx->processed_length++;
+        }
+    } else if (value_type == hvt_list) {
+        uint8_t sp = 0;
+        while (s[ctx->processed_length] != end_token && s[ctx->processed_length] != '\0') {
+            char c = s[ctx->processed_length];
+            if (c == ' ' || c == '\t' || c == '\r' || c == '\n') {
+                if (end_token == '\0')
+                    return;
+
+                if (sp) {
+                    s[ctx->output_length++] = ' ';
+                    sp = 0;
+                }
+                ctx->processed_length++;
+                continue;
+            } else if ((c == '/' || c == '>') && end_token == '\0')
+                return;
+            sp = 1;
+            s[ctx->output_length++] = c;
+            ctx->processed_length++;
+        }
     }
+    s[ctx->output_length++] = s[ctx->processed_length];
+    ctx->processed_length++;
 }
 
 webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags) {
@@ -40,6 +90,7 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
     s[ctx->output_length++] = '<';
     if (s[++ctx->processed_length] == '/') {
         tag.flags |= WEBMIN_HTML_TAG_CLOSE;
+        s[ctx->output_length++] = '/';
         ctx->processed_length++;
     }
 
@@ -168,25 +219,73 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
             } break; case'=':case'/':case'>': {
                 ctx->error = webmin_err_html_tag_invalid_name_character;
                 return tag;
-            } case'\'':case'"': {
+            } case'\'':case'"':default: {
                 s[ctx->output_length++] = c;
-
                 state = hts_value;
-            } break; default: {
-                s[ctx->output_length++] = c;
-
-                state = hts_value;
+                webmin_html_process_value(ctx, s, webmin_html_get_value_type(s + last_identifier_begin, last_identifier_end - last_identifier_begin));
+                state = hts_void;
             } break;}
+        }
+
+        ctx->processed_length++;
+    }
+
+    return tag;
+}
+
+void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags, const char *end_tag, size_t end_tag_length) {
+    uint8_t sp = 0;
+    while (s[ctx->processed_length] != '\0' && ctx->processed_length < ctx->max_length) {
+        for (size_t i = 0; delims[i] != NULL; i++) {
+            printf("i: %zu\n", i);
+            size_t tok_len = strlen(delims[i]);
+            if (!strncmp(s + ctx->processed_length, delims[i], tok_len)) {
+                //ctx->processed_length += tok_len;
+                puts("E");
+                return;
+            }
+        }
+
+        char c = s[ctx->processed_length];
+
+        if (c == '<') {
+            sp = 1;
+            char c = s[ctx->processed_length + 1];
+            if (c == '/') {
+                char c = s[ctx->processed_length + 2];
+            }
+            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
+                webmin_html_tag tag = webmin_html_tag_extractor(ctx, s, delims, 0);
+                if (webmin_string_equals_ignore_case_with_length(tag.type, "pre", 3) && !(tag.flags & WEBMIN_HTML_TAG_CLOSE)) {
+                    webmin_html_inner(ctx, s, delims, WEBMIN_HTML_PRESERVE_SPACE, "pre", 3);
+                } else if (tag.flags & WEBMIN_HTML_TAG_CLOSE) {
+                    if (end_tag == NULL) {
+                        ctx->error = webmin_err_html_tag_closes_nothing;
+                    } else if (!webmin_string_equals_ignore_case_with_length(tag.type, end_tag, end_tag_length)) {
+                        ctx->error = webmin_err_html_tag_unmatched_close;
+                    }
+                    return;
+                }
+            }
+        } else if ((c == ' ' || c == '\n' || c == '\t') && !(flags & WEBMIN_HTML_PRESERVE_SPACE)) {
+            if (sp) {
+                sp = 0;
+                s[ctx->output_length++] = ' ';
+            }
+        } else if (c == '\r' && !(flags & WEBMIN_HTML_PRESERVE_SPACE)) {
+
+        } else {
+            sp = 1;
+            s[ctx->output_length++] = c;
         }
 
         ctx->processed_length++;
     }
 }
 
-void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], size_t max_length, uint8_t flags) {
-    
-}
+void webmin_html(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags) {
+    //webmin_html_tag tag = webmin_html_tag_extractor(ctx, s, delims, 0);
+    //printf("TAG: <%.*s>\n", (int)tag.type_length, tag.type);
 
-void webmin_html(webmin_context_t *ctx, char *s, const char *delims[], size_t max_length, uint8_t flags) {
-
+    webmin_html_inner(ctx, s, delims, 0, NULL, 0);
 }

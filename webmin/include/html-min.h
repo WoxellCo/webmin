@@ -9,6 +9,7 @@
 #define WEBMIN_HTML_TAG_SELF_CLOSE  (0 << 1) // like <div/> (not valid html but still useful information)
 #define WEBMIN_HTML_TAG_SINGLE      (0 << 2) // like <br> or <br/>, they don't have a body
 #define WEBMIN_HTML_TAG_CLOSE       (0 << 3) // </div>
+#define WEBMIN_HTML_PRESERVE_SPACE  (0 << 4)
 
 typedef struct {
     char *type;
@@ -17,7 +18,7 @@ typedef struct {
 } webmin_html_tag;
 
 webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags);
-void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], size_t max_length, uint8_t flags);
-void webmin_html(webmin_context_t *ctx, char *s, const char *delims[], size_t max_length, uint8_t flags);
+void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags, const char *end_tag, size_t end_tag_length);
+void webmin_html(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags);
 
 #endif

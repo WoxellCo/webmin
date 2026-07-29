@@ -1,5 +1,6 @@
 #include "js-min.h"
 
+#if 0
 struct kw_and_sp {
     size_t length;
     int needs_spacing;
@@ -194,3 +195,5 @@ webmin_context_t webmin_js(char *s, char *delims[], size_t max_length, uint8_t f
     s[result.output_length] = '\0';
     return result;
 }
+
+#endif
