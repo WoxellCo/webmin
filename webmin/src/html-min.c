@@ -19,6 +19,33 @@ enum html_value_type {
     hvt_list
 };
 
+uint8_t webmin_html_is_tag_empty(const char *type, size_t type_length) {
+    // https://www.tutsinsider.com/html/html-empty-elements/
+    return webmin_string_equals_ignore_case_with_length(type, "area", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "base", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "basefont", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "bgsound", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "br", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "col", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "command", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "embed", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "frame", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "hr", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "img", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "input", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "isindex", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "keygen", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "link", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "meta", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "nextid", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "param", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "plaintext", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "source", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "track", type_length)
+        || webmin_string_equals_ignore_case_with_length(type, "wbr", type_length)
+    ;
+}
+
 uint8_t webmin_html_get_value_type(const char *key, size_t key_length) {
     if (webmin_string_equals_ignore_case_with_length(key, "class", key_length)) {
         return hvt_list;
@@ -128,9 +155,11 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
                     ctx->error = webmin_err_html_tag_invalid_self_close;
                     return tag;
                 }
+                tag.type_length = ctx->output_length - last_identifier_begin;
                 tag.flags |= WEBMIN_HTML_TAG_SELF_CLOSE;
                 s[ctx->output_length++] = '/';
             } else if (c == '>') {
+                tag.type_length = ctx->output_length - last_identifier_begin;
                 s[ctx->output_length++] = '>';
                 // increment ctx->processed_length? or do it after it reutrn? i'll try the latter
                 return tag;
@@ -225,7 +254,7 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
             switch (c) {case' ':case'\t':case'\n':case'\r': {
                 // ignore extra spacing
             } break; case'=':case'/':case'>': {
-                ctx->error = webmin_err_html_tag_invalid_name_character;
+                ctx->error = webmin_err_html_tag_invalid_name_character; // wrong error: value expected instead of close or another equal sign
                 return tag;
             } case'\'':case'"':default: {
                 //s[ctx->output_length++] = c;
@@ -242,14 +271,13 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
 }
 
 void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags, const char *end_tag, size_t end_tag_length) {
+    printf("TAG OPEN: \"%.*s\"\n", (int)end_tag_length, end_tag);
     uint8_t sp = 0, contains_text = 0;
     while (s[ctx->processed_length] != '\0' && ctx->processed_length < ctx->max_length) {
         for (size_t i = 0; delims[i] != NULL; i++) {
-            printf("i: %zu\n", i);
             size_t tok_len = strlen(delims[i]);
             if (!strncmp(s + ctx->processed_length, delims[i], tok_len)) {
                 //ctx->processed_length += tok_len;
-                puts("E");
                 return;
             }
         }
@@ -257,7 +285,7 @@ void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uin
         char c = s[ctx->processed_length];
 
         if (c == '<') {
-            if (s[ctx->output_length - 1] == ' ')
+            if (ctx->output_length > 0 && s[ctx->output_length - 1] == ' ' && !contains_text)
                 ctx->output_length--;
             sp = contains_text;
             char c = s[ctx->processed_length + 1];
@@ -266,15 +294,20 @@ void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uin
             }
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
                 webmin_html_tag tag = webmin_html_tag_extractor(ctx, s, delims, 0);
+                printf("<%s%.*s>\n", tag.flags & WEBMIN_HTML_TAG_CLOSE ? "/" : "", (int)tag.type_length, tag.type);
                 if (tag.flags & WEBMIN_HTML_TAG_CLOSE) {
+                    printf("TAG CLOSE: \"%.*s\"\n", (int)end_tag_length, end_tag);
                     if (end_tag == NULL) {
-                        ctx->error = webmin_err_html_tag_closes_nothing;
+                        ctx->error = webmin_err_html_tag_closes_nothing;puts("ERR");
                     } else if (!webmin_string_equals_ignore_case_with_length(tag.type, end_tag, end_tag_length)) {
                         ctx->error = webmin_err_html_tag_unmatched_close;
                     }
                     return;
                 } else if (webmin_string_equals_ignore_case_with_length(tag.type, "pre", 3)) {
                     webmin_html_inner(ctx, s, delims, WEBMIN_HTML_PRESERVE_SPACE, "pre", 3);
+                } else if (!webmin_html_is_tag_empty(tag.type, tag.type_length)) { // check if it's not empty tag like <br/>
+                    ctx->processed_length++;
+                    webmin_html_inner(ctx, s, delims, flags, tag.type, tag.type_length);
                 }
                 //continue;
             }

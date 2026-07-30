@@ -6,10 +6,10 @@
 
 #include "webmin_general.h"
 
-#define WEBMIN_HTML_TAG_SELF_CLOSE  (0 << 1) // like <div/> (not valid html but still useful information)
-#define WEBMIN_HTML_TAG_SINGLE      (0 << 2) // like <br> or <br/>, they don't have a body
-#define WEBMIN_HTML_TAG_CLOSE       (0 << 3) // </div>
-#define WEBMIN_HTML_PRESERVE_SPACE  (0 << 4)
+#define WEBMIN_HTML_TAG_SELF_CLOSE  (1 << 1) // like <div/> (not valid html but still useful information)
+#define WEBMIN_HTML_TAG_SINGLE      (1 << 2) // like <br> or <br/>, they don't have a body
+#define WEBMIN_HTML_TAG_CLOSE       (1 << 3) // </div>
+#define WEBMIN_HTML_PRESERVE_SPACE  (1 << 4)
 
 typedef struct {
     char *type;
