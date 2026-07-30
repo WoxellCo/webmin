@@ -1,3 +1,4 @@
+#include "webmin_general.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <webmin.h>
@@ -24,10 +25,15 @@ int main() {
 
     webmin_html(&ctx, content, (const char *[]){NULL}, 0);
     printf("OUTPUT_LENGTH: %zu\n", ctx.output_length);
+    printf("OUTPUT_ERROR: %u\n", ctx.error);
     content[ctx.output_length] = '\0';
 
     f = fopen("index-min.html", "w");
     fprintf(f, "%s", content);
     fclose(f);
     free(content);
+
+    printf("%d\n",
+        webmin_string_equals_ignore_case_with_length("CCC", "ccc", 3)
+    );
 }

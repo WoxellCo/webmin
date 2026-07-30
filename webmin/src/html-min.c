@@ -1,5 +1,6 @@
 #include "html-min.h"
 #include "webmin_general.h"
+#include <stdint.h>
 
 enum html_tag_status {
     hts_begin,          // <█ or </█
@@ -43,9 +44,9 @@ void webmin_html_process_value(webmin_context_t *ctx, char *s, uint8_t value_typ
             char c = s[ctx->processed_length];
             if (end_token == '\0') {
                 if (c == ' ' || c == '\t' || c == '\r' || c == '\n')
-                    return;
+                    break;
                 else if (c == '/' || c == '>')
-                    return;
+                    break;
             }
 
             s[ctx->output_length++] = c;
@@ -73,7 +74,7 @@ void webmin_html_process_value(webmin_context_t *ctx, char *s, uint8_t value_typ
         }
     }
     s[ctx->output_length++] = s[ctx->processed_length];
-    ctx->processed_length++;
+    //ctx->processed_length++;
 }
 
 webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags) {
@@ -97,6 +98,7 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
     uint8_t state = hts_begin;
     size_t last_identifier_begin = 0, last_identifier_end = 0;
 
+    uint8_t sp = 1;
     while (s[ctx->processed_length] != '\0' && ctx->processed_length < ctx->max_length) {
         char c = s[ctx->processed_length];
 
@@ -139,6 +141,10 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
         } else if (state == hts_void) {
             switch (c) {case' ':case'\t':case'\n':case'\r': {
                 // ignore extra spacing
+                if (sp) {
+                    s[ctx->output_length++] = ' ';
+                    sp = 0;
+                }
             } break; case'=':case'"':case'\'': {
                 ctx->error = webmin_err_html_tag_invalid_name_character;
                 return tag;
@@ -160,6 +166,7 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
                 state = hts_key;
             } break;}
         } else if (state == hts_key) {
+            sp = 1;
             switch (c) {case' ':case'\t':case'\n':case'\r': {
                 last_identifier_end = ctx->output_length;
                 s[ctx->output_length++] = ' ';
@@ -179,13 +186,14 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
                 // same thing here
                 return tag;
             } case'=': {
-                s[ctx->output_length++] = '=';
+                s[ctx->output_length] = '=';
+                last_identifier_end = ctx->output_length++;
                 state = hts_assign;
             } break; default: {
-                s[ctx->output_length] = c;
-                last_identifier_begin = ctx->output_length++;
+                s[ctx->output_length++] = c;
+                //last_identifier_begin = ctx->output_length++;
 
-                state = hts_key;
+                //state = hts_key;
             } break;}
         } else if (state == hts_key_after) {
             switch (c) {case' ':case'\t':case'\n':case'\r': {
@@ -220,7 +228,7 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
                 ctx->error = webmin_err_html_tag_invalid_name_character;
                 return tag;
             } case'\'':case'"':default: {
-                s[ctx->output_length++] = c;
+                //s[ctx->output_length++] = c;
                 state = hts_value;
                 webmin_html_process_value(ctx, s, webmin_html_get_value_type(s + last_identifier_begin, last_identifier_end - last_identifier_begin));
                 state = hts_void;
@@ -234,7 +242,7 @@ webmin_html_tag webmin_html_tag_extractor(webmin_context_t *ctx, char *s, const 
 }
 
 void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uint8_t flags, const char *end_tag, size_t end_tag_length) {
-    uint8_t sp = 0;
+    uint8_t sp = 0, contains_text = 0;
     while (s[ctx->processed_length] != '\0' && ctx->processed_length < ctx->max_length) {
         for (size_t i = 0; delims[i] != NULL; i++) {
             printf("i: %zu\n", i);
@@ -249,23 +257,26 @@ void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uin
         char c = s[ctx->processed_length];
 
         if (c == '<') {
-            sp = 1;
+            if (s[ctx->output_length - 1] == ' ')
+                ctx->output_length--;
+            sp = contains_text;
             char c = s[ctx->processed_length + 1];
             if (c == '/') {
-                char c = s[ctx->processed_length + 2];
+                c = s[ctx->processed_length + 2];
             }
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
                 webmin_html_tag tag = webmin_html_tag_extractor(ctx, s, delims, 0);
-                if (webmin_string_equals_ignore_case_with_length(tag.type, "pre", 3) && !(tag.flags & WEBMIN_HTML_TAG_CLOSE)) {
-                    webmin_html_inner(ctx, s, delims, WEBMIN_HTML_PRESERVE_SPACE, "pre", 3);
-                } else if (tag.flags & WEBMIN_HTML_TAG_CLOSE) {
+                if (tag.flags & WEBMIN_HTML_TAG_CLOSE) {
                     if (end_tag == NULL) {
                         ctx->error = webmin_err_html_tag_closes_nothing;
                     } else if (!webmin_string_equals_ignore_case_with_length(tag.type, end_tag, end_tag_length)) {
                         ctx->error = webmin_err_html_tag_unmatched_close;
                     }
                     return;
+                } else if (webmin_string_equals_ignore_case_with_length(tag.type, "pre", 3)) {
+                    webmin_html_inner(ctx, s, delims, WEBMIN_HTML_PRESERVE_SPACE, "pre", 3);
                 }
+                //continue;
             }
         } else if ((c == ' ' || c == '\n' || c == '\t') && !(flags & WEBMIN_HTML_PRESERVE_SPACE)) {
             if (sp) {
@@ -275,6 +286,7 @@ void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uin
         } else if (c == '\r' && !(flags & WEBMIN_HTML_PRESERVE_SPACE)) {
 
         } else {
+            contains_text = 1;
             sp = 1;
             s[ctx->output_length++] = c;
         }
