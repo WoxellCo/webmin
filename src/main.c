@@ -34,6 +34,6 @@ int main() {
     free(content);
 
     printf("%d\n",
-        webmin_string_equals_ignore_case_with_length("CCC", "ccc", 3)
+        webmin_string_equals_ignore_case_with_length("a", "area", 1)
     );
 }

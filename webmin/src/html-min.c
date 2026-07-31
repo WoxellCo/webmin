@@ -294,13 +294,14 @@ void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uin
             }
             if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') {
                 webmin_html_tag tag = webmin_html_tag_extractor(ctx, s, delims, 0);
+                //ctx->processed_length++;
                 printf("<%s%.*s>\n", tag.flags & WEBMIN_HTML_TAG_CLOSE ? "/" : "", (int)tag.type_length, tag.type);
                 if (tag.flags & WEBMIN_HTML_TAG_CLOSE) {
                     printf("TAG CLOSE: \"%.*s\"\n", (int)end_tag_length, end_tag);
                     if (end_tag == NULL) {
                         ctx->error = webmin_err_html_tag_closes_nothing;puts("ERR");
                     } else if (!webmin_string_equals_ignore_case_with_length(tag.type, end_tag, end_tag_length)) {
-                        ctx->error = webmin_err_html_tag_unmatched_close;
+                        ctx->error = webmin_err_html_tag_unmatched_close;puts("ERR7");
                     }
                     return;
                 } else if (webmin_string_equals_ignore_case_with_length(tag.type, "pre", 3)) {
