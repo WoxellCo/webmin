@@ -28,6 +28,6 @@ typedef struct {
     size_t max_length;
 } webmin_context_t;
 
-uint8_t webmin_string_equals_ignore_case_with_length(const char *x, const char *y, size_t n);
+uint8_t webmin_string_equals_ignore_case_with_length(const char *x, const char *y, size_t n1, size_t n2);
 
 #endif

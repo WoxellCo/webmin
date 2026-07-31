@@ -21,37 +21,37 @@ enum html_value_type {
 
 uint8_t webmin_html_is_tag_empty(const char *type, size_t type_length) {
     // https://www.tutsinsider.com/html/html-empty-elements/
-    return webmin_string_equals_ignore_case_with_length(type, "area", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "base", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "basefont", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "bgsound", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "br", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "col", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "command", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "embed", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "frame", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "hr", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "img", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "input", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "isindex", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "keygen", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "link", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "meta", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "nextid", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "param", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "plaintext", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "source", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "track", type_length)
-        || webmin_string_equals_ignore_case_with_length(type, "wbr", type_length)
+    return webmin_string_equals_ignore_case_with_length(type, "area", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "base", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "basefont", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "bgsound", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "br", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "col", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "command", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "embed", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "frame", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "hr", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "img", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "input", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "isindex", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "keygen", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "link", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "meta", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "nextid", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "param", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "plaintext", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "source", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "track", type_length, SIZE_MAX)
+        || webmin_string_equals_ignore_case_with_length(type, "wbr", type_length, SIZE_MAX)
     ;
 }
 
 uint8_t webmin_html_get_value_type(const char *key, size_t key_length) {
-    if (webmin_string_equals_ignore_case_with_length(key, "class", key_length)) {
+    if (webmin_string_equals_ignore_case_with_length(key, "class", key_length, SIZE_MAX)) {
         return hvt_list;
-    } else if (webmin_string_equals_ignore_case_with_length(key, "style", key_length)) {
+    } else if (webmin_string_equals_ignore_case_with_length(key, "style", key_length, SIZE_MAX)) {
         return hvt_css;
-    } else if (webmin_string_equals_ignore_case_with_length(key, "on", 2)) {
+    } else if (webmin_string_equals_ignore_case_with_length(key, "on", 2, SIZE_MAX)) {
         return hvt_js;
     } return hvt_static;
 }
@@ -300,11 +300,11 @@ void webmin_html_inner(webmin_context_t *ctx, char *s, const char *delims[], uin
                     printf("TAG CLOSE: \"%.*s\"\n", (int)end_tag_length, end_tag);
                     if (end_tag == NULL) {
                         ctx->error = webmin_err_html_tag_closes_nothing;puts("ERR");
-                    } else if (!webmin_string_equals_ignore_case_with_length(tag.type, end_tag, end_tag_length)) {
+                    } else if (!webmin_string_equals_ignore_case_with_length(tag.type, end_tag, tag.type_length, end_tag_length)) {
                         ctx->error = webmin_err_html_tag_unmatched_close;puts("ERR7");
                     }
                     return;
-                } else if (webmin_string_equals_ignore_case_with_length(tag.type, "pre", 3)) {
+                } else if (webmin_string_equals_ignore_case_with_length(tag.type, "pre", tag.type_length, 3)) {
                     webmin_html_inner(ctx, s, delims, WEBMIN_HTML_PRESERVE_SPACE, "pre", 3);
                 } else if (!webmin_html_is_tag_empty(tag.type, tag.type_length)) { // check if it's not empty tag like <br/>
                     ctx->processed_length++;
